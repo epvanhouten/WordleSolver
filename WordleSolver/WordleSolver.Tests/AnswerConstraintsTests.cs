@@ -26,6 +26,5 @@ public class AnswerConstraintsTests
             constraint = AnswerConstraints.MergeConstraints(constraint, nextConstraint);
             Assert.IsFalse(constraint.MatchesConstraint(guess.Guess));
         }
-
     }
 }
