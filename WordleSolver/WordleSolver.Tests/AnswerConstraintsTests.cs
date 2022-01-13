@@ -16,7 +16,7 @@ public class AnswerConstraintsTests
             new {Guess = "enter", Response = "xxxgx"},
             new {Guess = "snarl", Response = "xxyxx"},
         };
-        
+
         IAnswerConstraints constraint = new AnswerConstraints();
 
         foreach (var guess in guessSequence)

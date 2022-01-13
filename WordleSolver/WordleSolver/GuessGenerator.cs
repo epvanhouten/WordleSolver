@@ -120,27 +120,47 @@ public class GameResponse
     public static GameResponse TestGuess(string guess, string answer)
     {
         var hints = new Hint[GameConstants.WordLength];
+        var matchedCharacters = new Dictionary<char, int>(GameConstants.WordLength);
 
-        for (var guessPosition = 0; guessPosition < GameConstants.WordLength; guessPosition++)
+        for (var answerPosition = 0; answerPosition < GameConstants.WordLength; answerPosition++)
         {
-            var guessCharacter = guess[guessPosition];
+            EnsureCharacterInDictionary(matchedCharacters, answer[answerPosition]);
+            matchedCharacters[answer[answerPosition]]++;
+        }
 
-            if (answer[guessPosition] == guessCharacter)
+        for (var assignGreenIterationIndex = 0; assignGreenIterationIndex < GameConstants.WordLength; assignGreenIterationIndex++)
+        {
+            var guessCharacter = guess[assignGreenIterationIndex];
+
+            if (answer[assignGreenIterationIndex] == guessCharacter)
             {
-                hints[guessPosition] = Hint.Green;
+                matchedCharacters[guessCharacter]--;
+                hints[assignGreenIterationIndex] = Hint.Green;
             }
-            else if (answer.Contains(guessCharacter) &&
-                    answer.Count(c => c == guessCharacter) >= guess.Count(c => c == guessCharacter))
+        }
+
+        for (var assignYellowIterationIndex = 0; assignYellowIterationIndex < GameConstants.WordLength; assignYellowIterationIndex++)
+        {
+            var guessCharacter = guess[assignYellowIterationIndex];
+
+            if (answer[assignYellowIterationIndex] != guessCharacter &&
+                matchedCharacters.TryGetValue(guessCharacter, out var outStandingCount) &&
+                outStandingCount > 0)
             {
-                hints[guessPosition] = Hint.Yellow;
-            }
-            else
-            {
-                hints[guessPosition] = Hint.Black;
+                matchedCharacters[guessCharacter]--;
+                hints[assignYellowIterationIndex] = Hint.Yellow;
             }
         }
 
         return new GameResponse(hints);
+    }
+
+    private static void EnsureCharacterInDictionary(Dictionary<char, int> dict, char character)
+    {
+        if (!dict.ContainsKey(character))
+        {
+            dict.Add(character, default);
+        }
     }
 
     public static GameResponse Parse(string response)
@@ -163,7 +183,7 @@ public class GameResponse
 
 public enum Hint
 {
-    Black,
+    Black = 0,
     Yellow,
     Green
 }

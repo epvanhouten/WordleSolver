@@ -22,7 +22,7 @@ public class GameResponseTests
     {
         var response = GameResponse.TestGuess("raise", "abbey");
         var actualResponse = GameResponse.Parse("xyxxy");
-        
+
         for (var position = 0; position < response.PositionHints.Count; position++)
         {
             Assert.IsTrue(response.PositionHints[position] == actualResponse.PositionHints[position]);
@@ -34,7 +34,31 @@ public class GameResponseTests
     {
         var response = GameResponse.TestGuess("abbey", "abbey");
         var actualResponse = GameResponse.Parse("ggggg");
-        
+
+        for (var position = 0; position < response.PositionHints.Count; position++)
+        {
+            Assert.IsTrue(response.PositionHints[position] == actualResponse.PositionHints[position]);
+        }
+    }
+
+    [Test]
+    public void OutOfPlaceRepeatIsYellow()
+    {
+        var response = GameResponse.TestGuess("kebab", "abbey");
+        var actualResponse = GameResponse.Parse("xygyy");
+
+        for (var position = 0; position < response.PositionHints.Count; position++)
+        {
+            Assert.IsTrue(response.PositionHints[position] == actualResponse.PositionHints[position]);
+        }
+    }
+
+    [Test]
+    public void ThreeCharactersResultsInAllResponses()
+    {
+        var response = GameResponse.TestGuess("bobby", "abbey");
+        var actualResponse = GameResponse.Parse("yxgxg");
+
         for (var position = 0; position < response.PositionHints.Count; position++)
         {
             Assert.IsTrue(response.PositionHints[position] == actualResponse.PositionHints[position]);
