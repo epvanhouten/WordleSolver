@@ -11,7 +11,7 @@ if (wordLists == null)
     return;
 }
 
-var startingGuesses = new string[] { "raise" };
+var startingGuesses = new[] { "raise" };
 var startingResponses = Array.Empty<string>();
 if (args.Length != 0)
 {
@@ -31,7 +31,7 @@ if (args.Length != 0)
 }
 
 IAnswerConstraints constraints = new AnswerConstraints();
-var possibleAnswers = wordLists.LegalAnswers;
+var possibleAnswers = wordLists.LegalAnswers ?? throw new Exception("Legal answers failed to load");
 for (var answerCycle = 0; answerCycle < startingGuesses.Length; answerCycle++)
 {
     Console.WriteLine($"Guess: {startingGuesses[answerCycle]}");
