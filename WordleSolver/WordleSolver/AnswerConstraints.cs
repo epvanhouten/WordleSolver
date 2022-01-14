@@ -6,6 +6,7 @@ public class AnswerConstraints : IAnswerConstraints
 {
     private readonly PositionConstraint[] _positionConstraints = new PositionConstraint[GameConstants.WordLength];
     private readonly Dictionary<char, CountRange> _characterCounts = new();
+    private readonly List<Tuple<string, GameResponse>> _guessResponsePairs = new();
 
     private class CountRange
     {
@@ -37,13 +38,51 @@ public class AnswerConstraints : IAnswerConstraints
         {
             return $"{_min}:{_max}";
         }
+
+        public void Merge(CountRange newRange)
+        {
+            if (newRange._min > _min)
+            {
+                _min = newRange._min;
+            }
+
+            if (newRange._max < _max)
+            {
+                _max = newRange._max;
+            }
+        }
     }
 
     public AnswerConstraints()
+        : this(Enumerable.Empty<Tuple<string, GameResponse>>())
+    {
+
+    }
+
+    private AnswerConstraints(IEnumerable<Tuple<string, GameResponse>> guessResponsePairs)
     {
         for (var position = 0; position < GameConstants.WordLength; position++)
         {
             _positionConstraints[position] = new PositionConstraint();
+        }
+
+        _guessResponsePairs = guessResponsePairs.ToList();
+        foreach (var (guess, response) in _guessResponsePairs)
+        {
+            var iterationCharacterCounts = new Dictionary<char, CountRange>();
+            ApplyGuessResponsePair(guess, response, this, iterationCharacterCounts);
+            AddCharacterCountLimits(iterationCharacterCounts);
+        }
+    }
+
+    private void AddCharacterCountLimits(Dictionary<char, CountRange> newCountRanges)
+    {
+        foreach (var kvp in newCountRanges)
+        {
+            if (!_characterCounts.TryAdd(kvp.Key, kvp.Value))
+            {
+                _characterCounts[kvp.Key].Merge(kvp.Value);
+            }
         }
     }
 
@@ -60,58 +99,64 @@ public class AnswerConstraints : IAnswerConstraints
 
     public bool MatchesConstraint(string answerToTest)
     {
-        var observedCharacterCounts = ObservedCharacterCountPool.Get();
-        observedCharacterCounts.Clear();
 
-        try
+        for (var position = 0; position < GameConstants.WordLength; position++)
         {
-            for (var position = 0; position < GameConstants.WordLength; position++)
+            if (!_positionConstraints[position].IsCharacterAllowed(answerToTest[position]))
             {
-                if (!_positionConstraints[position].IsCharacterAllowed(answerToTest[position]))
-                {
-                    return false;
-                }
+                return false;
+            }
+        }
 
-                if (!observedCharacterCounts.ContainsKey(answerToTest[position]))
+        foreach (var (targetCharacter, targetCharacterRange) in _characterCounts)
+        {
+            var firstCharacterIndex = answerToTest.IndexOf(targetCharacter);
+            var characterCount = 0;
+            if (firstCharacterIndex != -1)
+            {
+
+                for (var characterSearch = firstCharacterIndex;
+                     characterSearch < answerToTest.Length;
+                     characterSearch++)
                 {
-                    observedCharacterCounts.Add(answerToTest[position], 1);
-                }
-                else
-                {
-                    observedCharacterCounts[answerToTest[position]]++;
+                    if (answerToTest[characterSearch] == targetCharacter)
+                    {
+                        characterCount++;
+                    }
                 }
             }
 
-            return observedCharacterCounts.Where(kvp => _characterCounts.ContainsKey(kvp.Key))
-                .All(kvp => _characterCounts[kvp.Key].InRange(kvp.Value));
+            if (!targetCharacterRange.InRange(characterCount))
+            {
+                return false;
+            }
         }
-        finally
-        {
-            ObservedCharacterCountPool.Return(observedCharacterCounts);
-        }
+
+        return true;
     }
 
-    public void SetExactMatch(int guessPosition, char guessCharacter)
+    private void SetExactMatch(int guessPosition, char guessCharacter, Dictionary<char, CountRange> characterCounts)
     {
-        EnsureDictionaryHasKey(_characterCounts, guessCharacter);
-        _characterCounts[guessCharacter].SetLowerLimit();
+        EnsureDictionaryHasKey(characterCounts, guessCharacter);
+        characterCounts[guessCharacter].SetLowerLimit();
+
         _positionConstraints[guessPosition] = _positionConstraints[guessPosition].SetExact(guessCharacter);
     }
 
-    public void SetContains(int guessPosition, char guessCharacter)
+    private void SetContains(int guessPosition, char guessCharacter, Dictionary<char, CountRange> characterCounts)
     {
-        EnsureDictionaryHasKey(_characterCounts, guessCharacter);
-        _characterCounts[guessCharacter].SetLowerLimit();
+        EnsureDictionaryHasKey(characterCounts, guessCharacter);
+        characterCounts[guessCharacter].SetLowerLimit();
 
         _positionConstraints[guessPosition] = _positionConstraints[guessPosition].ForbidCharacter(guessCharacter);
     }
 
-    public void SetMissing(char guessCharacter)
+    private void SetMissing(char guessCharacter, Dictionary<char, CountRange> characterCounts)
     {
-        EnsureDictionaryHasKey(_characterCounts, guessCharacter);
-        _characterCounts[guessCharacter].SetUpperLimit();
+        EnsureDictionaryHasKey(characterCounts, guessCharacter);
+        characterCounts[guessCharacter].SetUpperLimit();
 
-        if (!_characterCounts[guessCharacter].InRange(1))
+        if (!characterCounts[guessCharacter].InRange(1))
         {
             for (int position = 0; position < GameConstants.WordLength; position++)
             {
@@ -120,7 +165,7 @@ public class AnswerConstraints : IAnswerConstraints
         }
     }
 
-    public static AnswerConstraints Parse(string guess, string? line)
+    public static IAnswerConstraints Parse(string guess, string? line)
     {
         if (line == null)
         {
@@ -134,61 +179,58 @@ public class AnswerConstraints : IAnswerConstraints
             throw new Exception($"Must provide exactly {GameConstants.WordLength} entries");
         }
 
-        var constraints = new AnswerConstraints();
-
-        for (int position = 0; position < GameConstants.WordLength; position++)
-        {
-            switch (line[position])
-            {
-                case 'x':
-                    constraints.SetMissing(guess[position]);
-                    break;
-                case 'y':
-                    constraints.SetContains(position, guess[position]);
-                    break;
-                case 'g':
-                    constraints.SetExactMatch(position, guess[position]);
-                    break;
-                default:
-                    throw new Exception($"{line[position]} is not a valid input");
-            }
-        }
-
-        return constraints;
+        var response = GameResponse.Parse(line);
+        return FromResponse(guess, response);
     }
 
     public static IAnswerConstraints FromResponse(string guess, GameResponse response)
     {
-        var constraints = new AnswerConstraints();
+        return new AnswerConstraints(new[] { new Tuple<string, GameResponse>(guess, response) });
+    }
 
+    private static void ApplyGuessResponsePair(string guess,
+                                               GameResponse response,
+                                               AnswerConstraints constraints,
+                                               Dictionary<char, CountRange> characterCounts)
+    {
         for (var position = 0; position < GameConstants.WordLength; position++)
         {
             switch (response.PositionHints[position])
             {
                 case Hint.Black:
-                    constraints.SetMissing(guess[position]);
+                    constraints.SetMissing(guess[position], characterCounts);
                     break;
                 case Hint.Yellow:
-                    constraints.SetContains(position, guess[position]);
+                    constraints.SetContains(position, guess[position], characterCounts);
                     break;
                 case Hint.Green:
-                    constraints.SetExactMatch(position, guess[position]);
+                    constraints.SetExactMatch(position, guess[position], characterCounts);
                     break;
                 default:
                     throw new ArgumentOutOfRangeException();
             }
         }
-
-        return constraints;
     }
 
     public IAnswerConstraints MergeConstraints(IAnswerConstraints newConstraints)
     {
+        if (newConstraints is AnswerConstraints other)
+        {
+            var mergedResponses = _guessResponsePairs.Concat(other._guessResponsePairs);
+            return new AnswerConstraints(mergedResponses);
+        }
+
         return new MergedConstraints(new[] { this, newConstraints });
     }
 
     public static IAnswerConstraints MergeConstraints(IAnswerConstraints first, IAnswerConstraints second)
     {
+        if (first is AnswerConstraints firstConstraint && second is AnswerConstraints secondConstraints)
+        {
+            var mergedResponses = firstConstraint._guessResponsePairs.Concat(secondConstraints._guessResponsePairs);
+            return new AnswerConstraints(mergedResponses);
+        }
+
         return new MergedConstraints(new[] { first, second });
     }
 }
