@@ -19,13 +19,15 @@ public static class GuessGenerator
                 resultingAnswerCounts.Add(resultingWordList.Count);
             }
 
-            var averageResult = (double)resultingAnswerCounts.Sum() / remainingAnswers.Count;
+            var averageResult = resultingAnswerCounts.Average();
+            var worstCase = resultingAnswerCounts.Max();
             if (averageResult < (guess?.AverageAnswerListLength ?? double.MaxValue))
             {
                 var newGuess = new GuessTuple
                 {
                     Guess = proposedGuess,
                     AverageAnswerListLength = averageResult,
+                    WorstCase = worstCase,
                 };
                 if (guess != null)
                 {
@@ -42,7 +44,7 @@ public static class GuessGenerator
     public static async Task<string> GetGuessAsync(WordLists currentWordLists, IAnswerConstraints knownConstraints)
     {
         var taskList = new List<Task>();
-        foreach (var chunk in currentWordLists.LegalAnswers.Chunk((int)Math.Ceiling((double)currentWordLists.LegalAnswers.Count / (Environment.ProcessorCount * 2))))
+        foreach (var chunk in currentWordLists.LegalGuesses.Chunk((int)Math.Ceiling((double)currentWordLists.LegalGuesses.Count / (Environment.ProcessorCount * 2))))
         {
             var chunkTask = Task.Run(() => GetGuess(chunk, currentWordLists, knownConstraints));
             taskList.Add(chunkTask);
