@@ -1,4 +1,6 @@
-﻿namespace WordleSolver;
+﻿using Microsoft.Extensions.ObjectPool;
+
+namespace WordleSolver;
 
 public class AnswerConstraints : IAnswerConstraints
 {
@@ -53,28 +55,40 @@ public class AnswerConstraints : IAnswerConstraints
         }
     }
 
+    private static readonly ObjectPool<Dictionary<char, int>> ObservedCharacterCountPool =
+        ObjectPool.Create<Dictionary<char, int>>();
+
     public bool MatchesConstraint(string answerToTest)
     {
-        var observedCharacterCounts = new Dictionary<char, int>();
-        for (var position = 0; position < GameConstants.WordLength; position++)
+        var observedCharacterCounts = ObservedCharacterCountPool.Get();
+        observedCharacterCounts.Clear();
+
+        try
         {
-            if (!_positionConstraints[position].IsCharacterAllowed(answerToTest[position]))
+            for (var position = 0; position < GameConstants.WordLength; position++)
             {
-                return false;
+                if (!_positionConstraints[position].IsCharacterAllowed(answerToTest[position]))
+                {
+                    return false;
+                }
+
+                if (!observedCharacterCounts.ContainsKey(answerToTest[position]))
+                {
+                    observedCharacterCounts.Add(answerToTest[position], 1);
+                }
+                else
+                {
+                    observedCharacterCounts[answerToTest[position]]++;
+                }
             }
 
-            if (!observedCharacterCounts.ContainsKey(answerToTest[position]))
-            {
-                observedCharacterCounts.Add(answerToTest[position], 1);
-            }
-            else
-            {
-                observedCharacterCounts[answerToTest[position]]++;
-            }
+            return observedCharacterCounts.Where(kvp => _characterCounts.ContainsKey(kvp.Key))
+                .All(kvp => _characterCounts[kvp.Key].InRange(kvp.Value));
         }
-
-        return observedCharacterCounts.Where(kvp => _characterCounts.ContainsKey(kvp.Key))
-                                      .All(kvp => _characterCounts[kvp.Key].InRange(kvp.Value));
+        finally
+        {
+            ObservedCharacterCountPool.Return(observedCharacterCounts);
+        }
     }
 
     public void SetExactMatch(int guessPosition, char guessCharacter)
