@@ -58,7 +58,7 @@ while (possibleAnswers.Count != 1)
     Console.WriteLine($"Guess: {nextGuess}");
     Console.WriteLine("Enter result: x = 'black', y = 'yellow', g = 'green'");
     var line = Console.ReadLine();
-    var newConstraints = AnswerConstraints.Parse(nextGuess, line);
+    var newConstraints = AnswerConstraints.Parse(nextGuess.Guess, line);
     constraints = constraints.MergeConstraints(newConstraints);
     possibleAnswers = wordLists.ApplyConstraints(constraints).ToList();
 

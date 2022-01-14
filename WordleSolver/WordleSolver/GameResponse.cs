@@ -11,6 +11,19 @@ public class GameResponse
         _hints = hints;
     }
 
+    public bool IsVictory()
+    {
+        for (var hintIndex = 0; hintIndex < _hints.Length; hintIndex++)
+        {
+            if (_hints[hintIndex] != Hint.Green)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     public static GameResponse TestGuess(string guess, string answer)
     {
         var hints = new Hint[GameConstants.WordLength];
