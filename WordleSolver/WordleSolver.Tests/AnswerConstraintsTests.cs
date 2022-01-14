@@ -27,4 +27,21 @@ public class AnswerConstraintsTests
             Assert.IsFalse(constraint.MatchesConstraint(guess.Guess));
         }
     }
+
+    [Test]
+    public void MergedConstraintsWorkCorrectly()
+    {
+        var firstResponse = GameResponse.TestGuess("raise", "abbey");
+        var firstConstraint = AnswerConstraints.FromResponse("raise", firstResponse);
+        var firstConstraintMatches = firstConstraint.MatchesConstraint("abbey");
+        Assert.IsTrue(firstConstraintMatches);
+
+        var secondResponse = GameResponse.TestGuess("elate", "abbey");
+        var secondConstraint = AnswerConstraints.FromResponse("elate", secondResponse);
+        var secondConstraintMatches = firstConstraint.MatchesConstraint("abbey");
+        Assert.IsTrue(secondConstraintMatches);
+
+        var mergedConstraints = AnswerConstraints.MergeConstraints(firstConstraint, secondConstraint);
+        Assert.IsTrue(mergedConstraints.MatchesConstraint("abbey"));
+    }
 }

@@ -3,7 +3,39 @@
 public class AnswerConstraints : IAnswerConstraints
 {
     private readonly PositionConstraint[] _positionConstraints = new PositionConstraint[GameConstants.WordLength];
-    private readonly List<char> _requiredCharacters = new(GameConstants.WordLength);
+    private readonly Dictionary<char, CountRange> _characterCounts = new();
+
+    private class CountRange
+    {
+        private int _min = 0;
+        private int _max = GameConstants.WordLength;
+
+        public void SetUpperLimit()
+        {
+            _max = _min;
+        }
+
+        public void SetLowerLimit()
+        {
+            _min++;
+
+            if (_min > _max)
+            {
+                SetUpperLimit();
+            }
+        }
+
+        public bool InRange(int observedCount)
+        {
+            return observedCount >= _min &&
+                   observedCount <= _max;
+        }
+
+        public override string ToString()
+        {
+            return $"{_min}:{_max}";
+        }
+    }
 
     public AnswerConstraints()
     {
@@ -13,47 +45,64 @@ public class AnswerConstraints : IAnswerConstraints
         }
     }
 
+    private static void EnsureDictionaryHasKey(IDictionary<char, CountRange> dict, char key)
+    {
+        if (!dict.ContainsKey(key))
+        {
+            dict.Add(key, new CountRange());
+        }
+    }
+
     public bool MatchesConstraint(string answerToTest)
     {
-        for (var requiredCharacterIndex = 0; requiredCharacterIndex < _requiredCharacters.Count; requiredCharacterIndex++)
-        {
-            if (!answerToTest.Contains(_requiredCharacters[requiredCharacterIndex]))
-            {
-                return false;
-            }
-        }
-
+        var observedCharacterCounts = new Dictionary<char, int>();
         for (var position = 0; position < GameConstants.WordLength; position++)
         {
             if (!_positionConstraints[position].IsCharacterAllowed(answerToTest[position]))
             {
                 return false;
             }
+
+            if (!observedCharacterCounts.ContainsKey(answerToTest[position]))
+            {
+                observedCharacterCounts.Add(answerToTest[position], 1);
+            }
+            else
+            {
+                observedCharacterCounts[answerToTest[position]]++;
+            }
         }
 
-        return true;
+        return observedCharacterCounts.Where(kvp => _characterCounts.ContainsKey(kvp.Key))
+                                      .All(kvp => _characterCounts[kvp.Key].InRange(kvp.Value));
     }
 
     public void SetExactMatch(int guessPosition, char guessCharacter)
     {
+        EnsureDictionaryHasKey(_characterCounts, guessCharacter);
+        _characterCounts[guessCharacter].SetLowerLimit();
         _positionConstraints[guessPosition] = _positionConstraints[guessPosition].SetExact(guessCharacter);
     }
 
     public void SetContains(int guessPosition, char guessCharacter)
     {
-        if (!_requiredCharacters.Contains(guessCharacter))
-        {
-            _requiredCharacters.Add(guessCharacter);
-        }
+        EnsureDictionaryHasKey(_characterCounts, guessCharacter);
+        _characterCounts[guessCharacter].SetLowerLimit();
 
         _positionConstraints[guessPosition] = _positionConstraints[guessPosition].ForbidCharacter(guessCharacter);
     }
 
     public void SetMissing(char guessCharacter)
     {
-        for (int position = 0; position < GameConstants.WordLength; position++)
+        EnsureDictionaryHasKey(_characterCounts, guessCharacter);
+        _characterCounts[guessCharacter].SetUpperLimit();
+
+        if (!_characterCounts[guessCharacter].InRange(1))
         {
-            _positionConstraints[position] = _positionConstraints[position].ForbidCharacter(guessCharacter);
+            for (int position = 0; position < GameConstants.WordLength; position++)
+            {
+                _positionConstraints[position] = _positionConstraints[position].ForbidCharacter(guessCharacter);
+            }
         }
     }
 
