@@ -1,4 +1,5 @@
 ﻿using System.Text.Json;
+using Spectre.Console;
 using Spectre.Console.Cli;
 
 namespace WordleSolver;
@@ -53,8 +54,7 @@ public class InteractiveSolverCommand : AsyncCommand<InteractiveSolverCommand.Se
             }
             else
             {
-                Console.WriteLine("Enter result: x = 'black', y = 'yellow', g = 'green'");
-                var line = Console.ReadLine();
+                var line = PromptForResponse();
                 var newConstraints = AnswerConstraints.Parse(startingGuesses[answerCycle], line);
                 constraints = constraints.MergeConstraints(newConstraints);
             }
@@ -64,8 +64,7 @@ public class InteractiveSolverCommand : AsyncCommand<InteractiveSolverCommand.Se
         {
             var nextGuess = await GuessGenerator.GetGuessAsync(wordLists, constraints);
             Console.WriteLine($"Guess: {nextGuess}");
-            Console.WriteLine("Enter result: x = 'black', y = 'yellow', g = 'green'");
-            var line = Console.ReadLine();
+            var line = PromptForResponse();
             var newConstraints = AnswerConstraints.Parse(nextGuess.Guess, line);
             constraints = constraints.MergeConstraints(newConstraints);
             possibleAnswers = wordLists.ApplyConstraints(constraints).ToList();
@@ -78,5 +77,27 @@ public class InteractiveSolverCommand : AsyncCommand<InteractiveSolverCommand.Se
 
         Console.WriteLine($"Answer: {possibleAnswers.Single()}");
         return 0;
+    }
+
+    private static string PromptForResponse()
+    {
+        return AnsiConsole.Prompt(
+            new TextPrompt<string>("[bold]Enter result (x = 'black', y = 'yellow', g = 'green'):[/] ")
+                .Validate(response =>
+                {
+                    const string errorString =
+                        "Response must be 5 characters of 'x', 'y', and 'g'. (i.e. \"xygxx\")";
+                    if (response.Length != GameConstants.WordLength)
+                    {
+                        return ValidationResult.Error(errorString);
+                    }
+
+                    if (!response.All(c => c is 'x' or 'y' or 'g'))
+                    {
+                        return ValidationResult.Error(errorString);
+                    }
+
+                    return ValidationResult.Success();
+                }));
     }
 }

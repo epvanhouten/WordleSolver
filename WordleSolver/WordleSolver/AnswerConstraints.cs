@@ -1,6 +1,4 @@
-﻿using Microsoft.Extensions.ObjectPool;
-
-namespace WordleSolver;
+﻿namespace WordleSolver;
 
 public class AnswerConstraints : IAnswerConstraints
 {
@@ -93,9 +91,6 @@ public class AnswerConstraints : IAnswerConstraints
             dict.Add(key, new CountRange());
         }
     }
-
-    private static readonly ObjectPool<Dictionary<char, int>> ObservedCharacterCountPool =
-        ObjectPool.Create<Dictionary<char, int>>();
 
     public bool MatchesConstraint(string answerToTest)
     {
