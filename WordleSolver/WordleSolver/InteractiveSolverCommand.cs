@@ -1,6 +1,7 @@
 ﻿using System.Text.Json;
 using Spectre.Console;
 using Spectre.Console.Cli;
+using WordleSolver.FitnessFunction;
 
 namespace WordleSolver;
 
@@ -13,6 +14,8 @@ public class InteractiveSolverCommand : AsyncCommand<InteractiveSolverCommand.Se
 
         [CommandArgument(0, "[GuessResponseSequence]")]
         public string[] GuessResponseSequence { get; init; } = new[] { "raise" };
+
+        [CommandOption("--strategy")] public FitnessStrategy Strategy { get; init; } = FitnessStrategy.WinRate;
     }
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings)
@@ -24,6 +27,14 @@ public class InteractiveSolverCommand : AsyncCommand<InteractiveSolverCommand.Se
             Console.WriteLine("Failed to read WordList.json. Aborting.");
             return -1;
         }
+
+        GuessGenerator.FitnessFunction = settings.Strategy switch
+        {
+            FitnessStrategy.Average => new AverageRemainingAnswers(),
+            FitnessStrategy.Hybrid => new HybridStrategy(),
+            FitnessStrategy.WinRate => new TwoMoveWinRateStrategy(),
+            _ => throw new ArgumentOutOfRangeException()
+        };
 
         var startingGuesses = new string[(int)Math.Ceiling((double)settings.GuessResponseSequence.Length / 2)];
         var startingResponses = new string[settings.GuessResponseSequence.Length / 2];
@@ -100,4 +111,11 @@ public class InteractiveSolverCommand : AsyncCommand<InteractiveSolverCommand.Se
                     return ValidationResult.Success();
                 }));
     }
+}
+
+public enum FitnessStrategy
+{
+    Average,
+    Hybrid,
+    WinRate,
 }

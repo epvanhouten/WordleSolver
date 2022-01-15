@@ -4,16 +4,16 @@ namespace WordleSolver;
 
 public static class GuessGenerator
 {
-    public static IComparer<GuessTuple> FitnessFunction { get; set; } = new HybridStrategy();
+    public static IComparer<GuessTuple> FitnessFunction { get; set; } = new TwoMoveWinRateStrategy();
 
     private static IEnumerable<GuessTuple> GetGuess(IEnumerable<string> wordsToTest, WordLists currentWordLists, IAnswerConstraints knownConstraints)
     {
         var testList = wordsToTest.ToList();
-        var guesses = new List<GuessTuple>(testList.Count());
+        var guesses = new List<GuessTuple>(testList.Count);
         var remainingAnswers = currentWordLists.ApplyConstraints(knownConstraints).ToList();
         foreach (var proposedGuess in testList)
         {
-            var resultingAnswerCounts = new List<Tuple<int, bool>>(currentWordLists.LegalAnswers.Count);
+            var resultingAnswerCounts = new List<GuessTrial>(currentWordLists.LegalAnswers.Count);
             foreach (var assumedSolution in remainingAnswers)
             {
                 var response = GameResponse.TestGuess(proposedGuess, assumedSolution);
@@ -21,7 +21,11 @@ public static class GuessGenerator
                 newConstraint = AnswerConstraints.MergeConstraints(newConstraint, knownConstraints);
                 var resultingWordList = currentWordLists.ApplyConstraints(newConstraint).ToList();
 
-                resultingAnswerCounts.Add(new Tuple<int, bool>(resultingWordList.Count, response.IsVictory()));
+                resultingAnswerCounts.Add(new GuessTrial
+                {
+                    RemainingAnswers = resultingWordList.Count,
+                    IsWin = response.IsVictory()
+                });
             }
 
             if (resultingAnswerCounts.Count == 0)
@@ -29,16 +33,7 @@ public static class GuessGenerator
                 continue;
             }
 
-            var averageResult = resultingAnswerCounts.Average(t => t.Item1);
-            var worstCase = resultingAnswerCounts.Max(t => t.Item1);
-            var winRate = (double)resultingAnswerCounts.Count(t => t.Item2) / resultingAnswerCounts.Count;
-            guesses.Add(new GuessTuple
-            {
-                Guess = proposedGuess,
-                AverageAnswerListLength = averageResult,
-                WorstCase = worstCase,
-                WinRate = winRate,
-            });
+            guesses.Add(new GuessTuple(proposedGuess, resultingAnswerCounts));
         }
 
         return guesses;
